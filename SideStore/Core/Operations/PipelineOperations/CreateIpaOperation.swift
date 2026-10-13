@@ -42,6 +42,9 @@ final class CreateIpaOperation: BasePipelineOperation<InstallAppOperationContext
             debugLog("[CreateIpaOperation] Packaged IPA created at \(ipaURL.path)")
             return ipaURL
         } catch {
+            let name = appURL.deletingPathExtension().lastPathComponent
+            let ipaURL = appURL.deletingLastPathComponent().appendingPathComponent("\(name).ipa")
+            try? FileManager.default.removeItem(at: ipaURL)
             debugLog("[CreateIpaOperation] Packaging IPA failed with error: \(error). Falling back to direct app bundle transfer.")
             self.context.ipaURL = nil
             self.setProgress(100)
