@@ -190,57 +190,58 @@ private enum FastIpaPackager {
         )
 
         // 2. Enumerate bundle contents
-        let canonicalBundleURL = appURL.resolvingSymlinksInPath()
-        let basePath = canonicalBundleURL.path.hasSuffix("/") ? canonicalBundleURL.path : canonicalBundleURL.path + "/"
-
-        guard let enumerator = fileManager.enumerator(
-            at: canonicalBundleURL,
-            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: []
-        ) else {
+        let searchPath = fileManager.fileExists(atPath: appURL.path) ? appURL.path : appURL.resolvingSymlinksInPath().path
+        guard let enumerator = fileManager.enumerator(atPath: searchPath) else {
             throw CocoaError(.fileReadUnknown)
         }
 
-        for case let fileURL as URL in enumerator {
-            let path = fileURL.path
-            guard path.hasPrefix(basePath) else { continue }
-            let relative = String(path.dropFirst(basePath.count))
-            guard !relative.isEmpty else { continue }
+        var fileCount = 0
+        for case let relativePath as String in enumerator {
+            guard !relativePath.isEmpty else { continue }
+            let itemPath = (searchPath as NSString).appendingPathComponent(relativePath)
+            let itemURL = URL(fileURLWithPath: itemPath)
 
-            guard let attrs = try? fileManager.attributesOfItem(atPath: path) else {
+            guard let attrs = try? fileManager.attributesOfItem(atPath: itemPath) else {
                 continue
             }
             let fileType = attrs[.type] as? FileAttributeType
             let posixPerms = (attrs[.posixPermissions] as? NSNumber)?.uint32Value ?? 0o644
             let modDate = (attrs[.modificationDate] as? Date) ?? rootDate
 
+            fileCount += 1
+
             if fileType == .typeSymbolicLink {
                 // Symlink: read destination target, store with S_IFLNK (0o120777)
-                guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: path) else {
+                guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: itemPath) else {
                     continue
                 }
-                let zipPath = "Payload/\(appDirName)/\(relative)"
+                let zipPath = "Payload/\(appDirName)/\(relativePath)"
                 let linkData = Data(destination.utf8)
                 let extAttr = UInt32(0o120777) << 16
                 try writeZipEntry(path: zipPath, data: linkData, date: modDate, externalAttributes: extAttr)
             } else if fileType == .typeDirectory {
                 // Directory: store with S_IFDIR and trailing slash
-                let zipPath = "Payload/\(appDirName)/\(relative)/"
+                let zipPath = "Payload/\(appDirName)/\(relativePath)/"
                 let extAttr = UInt32(0o040000 | (posixPerms & 0o777)) << 16
                 try writeZipEntry(path: zipPath, data: Data(), date: modDate, externalAttributes: extAttr)
             } else {
                 // Regular file: memory map to prevent OOM on large files like OpenJDK modules
-                let zipPath = "Payload/\(appDirName)/\(relative)"
+                let zipPath = "Payload/\(appDirName)/\(relativePath)"
                 let fileData: Data
                 do {
-                    fileData = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+                    fileData = try Data(contentsOf: itemURL, options: .mappedIfSafe)
                 } catch {
-                    debugLog("[CreateIpaOperation] Warning: failed to read file at \(path): \(error)")
+                    debugLog("[CreateIpaOperation] Warning: failed to read file at \(itemPath): \(error)")
                     continue
                 }
                 let extAttr = UInt32(0o100000 | (posixPerms & 0o777)) << 16
                 try writeZipEntry(path: zipPath, data: fileData, date: modDate, externalAttributes: extAttr)
             }
+        }
+
+        guard fileCount > 0 else {
+            debugLog("[CreateIpaOperation] ERROR: Enumeration returned 0 items from \(searchPath)!")
+            throw CocoaError(.fileReadUnknown)
         }
 
         // 3. Central Directory & End of Central Directory (EOCD)
@@ -287,6 +288,16 @@ private enum FastIpaPackager {
 
         try handle.write(contentsOf: eocd)
         try handle.synchronize()
+        try handle.close()
+
+        let ipaAttributes = (try? fileManager.attributesOfItem(atPath: ipaURL.path)) ?? [:]
+        let ipaSize = (ipaAttributes[.size] as? NSNumber)?.int64Value ?? 0
+        debugLog("[CreateIpaOperation] FastIpaPackager finished: \(ipaURL.path) (\(ipaSize) bytes, \(cdRecords.count) entries, \(fileCount) items)")
+
+        guard ipaSize > 1024 else {
+            debugLog("[CreateIpaOperation] ERROR: Packaged IPA is unreasonably small (\(ipaSize) bytes). Aborting packaging.")
+            throw CocoaError(.fileWriteUnknown)
+        }
 
         return ipaURL
     }
