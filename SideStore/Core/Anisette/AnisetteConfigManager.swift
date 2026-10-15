@@ -130,15 +130,16 @@ public actor AnisetteConfigManager {
             return config
         }()
 
-        let resolvedClientInfo   = (udClientInfo?.isEmpty == false ? udClientInfo : fileConfig?.clientInfo) ?? AppConstants.Anisette.defaultClientInfo
-        let resolvedUserAgent    = (udUserAgent?.isEmpty == false ? udUserAgent : fileConfig?.userAgent) ?? AppConstants.Anisette.defaultUserAgent
-        let resolvedDeviceID     = (udDeviceID?.isEmpty == false ? udDeviceID : fileConfig?.customDeviceID)
-        let resolvedLocalUserID  = (udLocalUserID?.isEmpty == false ? udLocalUserID : fileConfig?.customLocalUserID)
-        let resolvedLocale       = (udLocale?.isEmpty == false ? udLocale : fileConfig?.customLocale)
-        let resolvedTimeZone     = (udTimeZone?.isEmpty == false ? udTimeZone : fileConfig?.customTimeZone)
-        let resolvedXcode        = (udXcodeVersion?.isEmpty == false ? udXcodeVersion : fileConfig?.customXcodeVersion)
-        let resolvedSerialNumber = (udSerialNumber?.isEmpty == false ? udSerialNumber : fileConfig?.customSerialNumber)
-        let resolvedRoutingInfo  = (udRoutingInfo?.isEmpty == false ? udRoutingInfo : fileConfig?.customRoutingInfo)
+        let rawClientInfo = (udClientInfo?.isEmpty == false ? udClientInfo : fileConfig?.clientInfo)
+        let resolvedClientInfo   = Self.normalizedClientInfo(rawClientInfo)
+        let resolvedUserAgent    = (udUserAgent?.isEmpty == false ? udUserAgent : fileConfig?.userAgent)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? AppConstants.Anisette.defaultUserAgent
+        let resolvedDeviceID     = (udDeviceID?.isEmpty == false ? udDeviceID : fileConfig?.customDeviceID)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedLocalUserID  = (udLocalUserID?.isEmpty == false ? udLocalUserID : fileConfig?.customLocalUserID)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedLocale       = (udLocale?.isEmpty == false ? udLocale : fileConfig?.customLocale)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTimeZone     = (udTimeZone?.isEmpty == false ? udTimeZone : fileConfig?.customTimeZone)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedXcode        = (udXcodeVersion?.isEmpty == false ? udXcodeVersion : fileConfig?.customXcodeVersion)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedSerialNumber = (udSerialNumber?.isEmpty == false ? udSerialNumber : fileConfig?.customSerialNumber)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedRoutingInfo  = (udRoutingInfo?.isEmpty == false ? udRoutingInfo : fileConfig?.customRoutingInfo)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return AnisetteConfig(
             clientInfo: resolvedClientInfo,
@@ -151,6 +152,20 @@ public actor AnisetteConfigManager {
             customSerialNumber: resolvedSerialNumber,
             customRoutingInfo: resolvedRoutingInfo
         )
+    }
+
+    /// Persisted macOS defaults are now rejected by GSA (-80045 / 503), and a trailing newline
+    /// from pasting makes the auth endpoint return an empty response (0 bytes).
+    public static func normalizedClientInfo(_ clientInfo: String?) -> String {
+        let trimmed = clientInfo?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty ||
+            AppConstants.Anisette.legacyClientInfos.contains(trimmed) ||
+            trimmed.contains("MacBook") ||
+            trimmed.contains("macOS") ||
+            trimmed.contains("com.apple.dt.Xcode") {
+            return AppConstants.Anisette.defaultClientInfo
+        }
+        return trimmed
     }
 
     public func makeRequestHeaders() -> AnisetteRequestHeaders {

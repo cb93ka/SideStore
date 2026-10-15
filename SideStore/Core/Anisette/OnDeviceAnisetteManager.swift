@@ -66,19 +66,27 @@ public actor OnDeviceAnisetteManager {
 
         let mode = AnisetteMode.remoteODA(sourceURL: sourceURL, fallbackURL: fallbackURL)
 
-        let (anisetteData, newAdiPb) = try await provider.fetchAnisetteData(
+        var (anisetteData, newAdiPb) = try await provider.fetchAnisetteData(
             mode: mode,
             identifier: identifierUUID,
             existingAdiBlob: existingAdiPbData,
             headers: headers
         )
 
+        // Explicitly guarantee that the returned AnisetteData carries the resolved clientInfo and userAgent
+        if let targetClientInfo = headers.clientInfo, !targetClientInfo.isEmpty {
+            anisetteData.clientInfo = targetClientInfo
+        }
+        if let targetUserAgent = headers.userAgent, !targetUserAgent.isEmpty {
+            anisetteData.userAgent = targetUserAgent
+        }
+
         if let freshBlob = newAdiPb {
             AnisetteConfigManager.shared.anisetteAdiBlob = freshBlob.base64EncodedString()
             debugLog("[OnDeviceAnisetteManager] [Fetch] Fresh local provisioning completed -> saved new adi.pb (\(freshBlob.count) bytes) to Keychain")
         }
 
-        debugLog("[OnDeviceAnisetteManager] [Fetch] SUCCESS: AnisetteData generated successfully.")
+        debugLog("[OnDeviceAnisetteManager] [Fetch] SUCCESS: AnisetteData generated successfully. ClientInfo: \(anisetteData.clientInfo), UserAgent: \(anisetteData.userAgent)")
         return anisetteData
     }
 }

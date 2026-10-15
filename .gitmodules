@@ -2,10 +2,10 @@
 
 [submodule "Dependencies/minimuxer"]
     path = Dependencies/minimuxer
-    url = https://github.com/SideStore/minimuxer
+    url = https://github.com/mahee96/minimuxer.git
     branch = develop
 [submodule "Dependencies/SideSign"]
 	path = Dependencies/SideSign
-	url = https://github.com/SideStore/SideSign
+	url = https://github.com/khanh8249/SideSign.git
 	branch = main
 
