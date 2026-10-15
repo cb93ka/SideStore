@@ -250,9 +250,6 @@ struct AnisetteServersView: View {
     #if os(tvOS)
     @State private var showingTvOptionsMenu = false
     #endif
-    @State private var customServerURL: String = UserDefaults.standard.customAnisetteURL ?? ""
-    @State private var isEditingCustomURL = false
-    @State private var editingCustomURLText: String = ""
 
     var selected: String?
     var onResetAdiPb: (() -> Void)?
@@ -558,68 +555,6 @@ struct AnisetteServersView: View {
                         Text("Control if SideStore automatically rotates/retries servers upon failure.")
                     }
 
-                    // Section: Custom Anisette Server
-                    Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Server URL")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            if isEditingCustomURL {
-                                TextField("https://your-server.com", text: $editingCustomURLText)
-                                    .font(.subheadline)
-                                    .autocapitalization(.none)
-                                    .disableAutocorrection(true)
-                                    #if !os(tvOS)
-                                    .keyboardType(.URL)
-                                    #endif
-                            } else {
-                                Text(customServerURL.isEmpty ? "Not configured (using public servers)" : customServerURL)
-                                    .font(.subheadline)
-                                    .foregroundColor(customServerURL.isEmpty ? .secondary : .primary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        }
-                        .padding(.vertical, 2)
-                        .contextMenu {
-                            if !customServerURL.isEmpty {
-                                SwiftUI.Button(role: .destructive) {
-                                    customServerURL = ""
-                                    editingCustomURLText = ""
-                                    Task {
-                                        await AnisetteServersManager.shared.setCustomServerURL(nil)
-                                        await viewModel.fetchServers(forceRemote: false)
-                                    }
-                                } label: {
-                                    Label("Clear Custom Server", systemImage: "trash")
-                                }
-                            }
-                        }
-                    } header: {
-                        HStack {
-                            Text("Custom Anisette Server")
-                            Spacer()
-                            SwiftUI.Button(isEditingCustomURL ? "Done" : (customServerURL.isEmpty ? "Set" : "Edit")) {
-                                if isEditingCustomURL {
-                                    isEditingCustomURL = false
-                                    let trimmed = editingCustomURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    customServerURL = trimmed
-                                    Task {
-                                        await AnisetteServersManager.shared.setCustomServerURL(trimmed.isEmpty ? nil : trimmed)
-                                        await viewModel.fetchServers(forceRemote: false)
-                                    }
-                                } else {
-                                    editingCustomURLText = customServerURL
-                                    isEditingCustomURL = true
-                                }
-                            }
-                            .font(.subheadline.weight(.semibold))
-                        }
-                    } footer: {
-                        Text("Direct URL to your self-hosted or tunnel Anisette server. When configured, it takes top priority over public servers.")
-                    }
-
                     // Bottom spacing section
                     Section {
                         Color.clear
@@ -809,7 +744,6 @@ struct AnisetteServersView: View {
             }
         }
         .task {
-            customServerURL = UserDefaults.standard.customAnisetteURL ?? ""
             let active = selected ?? UserDefaults.standard.menuAnisetteURL
             if !active.isEmpty {
                 selectedServerURL = active
