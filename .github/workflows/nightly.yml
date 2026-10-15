@@ -2,7 +2,7 @@ name: Nightly SideStore Build
 
 on:
   push:
-    branches: [develop, remote-pairing]
+    branches: [remote-pairing]
     paths-ignore:
       - '**.md'
       - 'LICENSE'
@@ -276,10 +276,10 @@ jobs:
           github.repository == 'khanh8249/SideStore'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly-remote-pairing
-          name: "Nightly (Remote Pairing)"
+          tag_name: nightly-fork-17.4+
+          name: "Nightly Fork 17.4+"
           body: |
-            Fork build with official Remote Pairing (iOS 17+), mahee96/minimuxer, and patched AnisetteKit/SideSign.
+            Fork build with official Remote Pairing (iOS 17.4+), mahee96/minimuxer, and patched AnisetteKit/SideSign.
 
             Commit: ${{ env.SHORT_COMMIT }}
             Version: ${{ env.MARKETING_VERSION }}
