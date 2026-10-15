@@ -271,7 +271,7 @@ jobs:
       - name: Upload Fork Release
         if: |
           steps.build_gate.outputs.should_skip != 'true' &&
-          github.repository == 'khanh8249/SideStore'
+          github.repository == 'lekhanh9/SideStore'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly-fork-17.4+

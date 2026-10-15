@@ -6,6 +6,6 @@
     branch = develop
 [submodule "Dependencies/SideSign"]
 	path = Dependencies/SideSign
-	url = https://github.com/khanh8249/SideSign.git
+	url = https://github.com/lekhanh9/SideSign.git
 	branch = main
 
