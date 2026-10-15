@@ -277,8 +277,8 @@ jobs:
           github.repository == 'khanh8249/SideStore'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly-fork
-          name: "Nightly (Fork)"
+          tag_name: nightly-fork-16
+          name: "Nightly Fork 16"
           body: |
             Fork build with minimuxer heartbeat fix for iOS 16.
 
