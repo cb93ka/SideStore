@@ -6,6 +6,6 @@
 	branch = backup-pr17-v1
 [submodule "Dependencies/SideSign"]
 	path = Dependencies/SideSign
-	url = git@github.com:SideStore/SideSign.git
+	url = git@github.com:khanh8249/SideSign.git
 	branch = main
 
