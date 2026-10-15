@@ -27,7 +27,8 @@ enum AnisetteProvider {
             throw AnisetteError.noServersConfigured
         }
 
-        let lastServer = UserDefaults.standard.menuAnisetteURL
+        let customURL = UserDefaults.standard.customAnisetteURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastServer = (customURL?.isEmpty == false ? customURL : nil) ?? UserDefaults.standard.menuAnisetteURL
         let startIndex = servers.firstIndex(where: { $0.absoluteString == lastServer }) ?? 0
 
         let provider = SideSign.AnisetteDataManager.shared

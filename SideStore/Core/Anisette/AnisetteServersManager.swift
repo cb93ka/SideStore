@@ -107,14 +107,43 @@ public actor AnisetteServersManager {
 
         let active = items.filter { !$0.isHidden }.map(\.address)
         let currentURL = UserDefaults.standard.menuAnisetteURL
-        if !active.contains(currentURL), let first = active.first {
+        let customURL = UserDefaults.standard.customAnisetteURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let custom = customURL, !custom.isEmpty {
+            UserDefaults.standard.menuAnisetteURL = custom
+        } else if !active.contains(currentURL), let first = active.first {
             UserDefaults.standard.menuAnisetteURL = first
         }
     }
 
     public func getActiveServerURLs() -> [String] {
-        let servers = loadLocalServers()
-        return servers.filter { !$0.isHidden }.map(\.address)
+        var servers = loadLocalServers().filter { !$0.isHidden }.map(\.address)
+        if let custom = UserDefaults.standard.customAnisetteURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !custom.isEmpty, URL(string: custom) != nil {
+            servers.removeAll(where: { $0.caseInsensitiveCompare(custom) == .orderedSame })
+            servers.insert(custom, at: 0)
+        }
+        return servers
+    }
+
+    public func setCustomServerURL(_ urlString: String?) {
+        let trimmed = urlString?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmed = trimmed, !trimmed.isEmpty, URL(string: trimmed) != nil {
+            UserDefaults.standard.customAnisetteURL = trimmed
+            UserDefaults.standard.menuAnisetteURL = trimmed
+            var currentServers = loadLocalServers()
+            currentServers.removeAll(where: { $0.address.caseInsensitiveCompare(trimmed) == .orderedSame })
+            currentServers.insert(AnisetteServerItem(name: "Custom Server", address: trimmed, isHidden: false), at: 0)
+            saveLocalServers(currentServers)
+        } else {
+            let previous = UserDefaults.standard.customAnisetteURL
+            UserDefaults.standard.customAnisetteURL = nil
+            var currentServers = loadLocalServers()
+            if let prev = previous, !prev.isEmpty {
+                currentServers.removeAll(where: { $0.address.caseInsensitiveCompare(prev) == .orderedSame })
+            }
+            currentServers.removeAll(where: { $0.name == "Custom Server" })
+            saveLocalServers(currentServers)
+        }
     }
 
     // MARK: - Offline File Mode State Keys
@@ -366,6 +395,13 @@ public actor AnisetteServersManager {
         // 2. Append newly added remote servers
         for newRemote in remainingRemote {
             mergedItems.append(AnisetteServerItem(name: newRemote.name, address: newRemote.address, isHidden: false))
+        }
+
+        // 3. Preserve custom server at top priority if configured
+        if let custom = UserDefaults.standard.customAnisetteURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !custom.isEmpty, URL(string: custom) != nil {
+            mergedItems.removeAll(where: { $0.address.caseInsensitiveCompare(custom) == .orderedSame })
+            mergedItems.insert(AnisetteServerItem(name: "Custom Server", address: custom, isHidden: false), at: 0)
         }
 
         saveLocalServers(mergedItems)

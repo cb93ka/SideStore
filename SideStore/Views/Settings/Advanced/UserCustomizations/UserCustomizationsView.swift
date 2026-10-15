@@ -19,6 +19,7 @@ struct UserCustomizationsView: View {
     @State private var isBackgroundServiceEnabled: Bool = UserDefaults.standard.isBackgroundServiceEnabled
     @State private var selectedBackgroundServiceMode: BackgroundServiceMode = UserDefaults.standard.backgroundServiceMode
     @State private var useOnDeviceAnisette: Bool = UserDefaults.standard.useOnDeviceAnisette
+    @State private var customAnisetteURL: String = UserDefaults.standard.customAnisetteURL ?? ""
     @State private var showAnisetteRestartConfirmation: Bool = false
     @State private var customizeInfoPlist: Bool = UserDefaults.standard.customizeInfoPlist
     @State private var preferSheetForInfoPlistCustomization: Bool = UserDefaults.standard.preferSheetForInfoPlistCustomization
@@ -127,6 +128,18 @@ struct UserCustomizationsView: View {
                                     showAnisetteRestartConfirmation = true
                                 }
                             )
+                        )
+                        
+                        divider
+                        
+                        textFieldRow(
+                            title: "Custom Anisette URL",
+                            subtitle: "Direct URL to your custom or self-hosted Anisette server",
+                            placeholder: "Not configured (tap to set)",
+                            value: customAnisetteURL,
+                            onTap: {
+                                openCustomAnisetteURLDialog()
+                            }
                         )
                         
                         divider
@@ -673,6 +686,30 @@ struct UserCustomizationsView: View {
             .background(Color.settingsRowBackground)
             .cornerRadius(14)
         }
+    }
+
+    private func openCustomAnisetteURLDialog() {
+        editingValueText = customAnisetteURL
+        editDialog = EditDialogState(
+            title: "Custom Anisette URL",
+            message: "Enter the full URL of your custom Anisette server (e.g. https://your-server.com or http://192.168.1.100:6969). Leave blank to use default servers.",
+            placeholder: "https://your-server.com",
+            keyboardType: .URL,
+            onSave: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    customAnisetteURL = ""
+                    UserDefaults.standard.customAnisetteURL = nil
+                } else {
+                    customAnisetteURL = trimmed
+                    UserDefaults.standard.customAnisetteURL = trimmed
+                    UserDefaults.standard.menuAnisetteURL = trimmed
+                    Task {
+                        await AnisetteServersManager.shared.setCustomServerURL(trimmed)
+                    }
+                }
+            }
+        )
     }
 
     private func openTurnOnShortcutDialog() {

@@ -24,6 +24,7 @@ class AnisetteDataViewModel: ObservableObject {
     @Published var customSerialNumber: String = ""
     @Published var customRoutingInfo: String = ""
     @Published var customXcodeVersion: String = ""
+    @Published var customAnisetteURL: String = ""
     
     @Published var isOfflineMode: Bool = false
     @Published var isLoading: Bool = false
@@ -50,6 +51,7 @@ class AnisetteDataViewModel: ObservableObject {
         customSerialNumber = config.customSerialNumber ?? ""
         customRoutingInfo = config.customRoutingInfo ?? ""
         customXcodeVersion = config.customXcodeVersion ?? ""
+        customAnisetteURL = UserDefaults.standard.customAnisetteURL ?? ""
         
         updateRawEditableJSON()
         
@@ -94,6 +96,16 @@ class AnisetteDataViewModel: ObservableObject {
         )
         await AnisetteConfigManager.shared.saveConfig(config)
         updateRawEditableJSON()
+        
+        let trimmedCustom = customAnisetteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedCustom.isEmpty {
+            UserDefaults.standard.customAnisetteURL = nil
+        } else {
+            UserDefaults.standard.customAnisetteURL = trimmedCustom
+            UserDefaults.standard.menuAnisetteURL = trimmedCustom
+        }
+        await AnisetteServersManager.shared.setCustomServerURL(trimmedCustom.isEmpty ? nil : trimmedCustom)
+        
         showToast(text: "Saved configuration successfully.")
     }
     
@@ -193,8 +205,9 @@ class AnisetteDataViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let activeServer = UserDefaults.standard.menuAnisetteURL
-            guard !activeServer.isEmpty, let url = URL(string: activeServer) else {
+            let customServer = customAnisetteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let serverString = (!customServer.isEmpty ? customServer : nil) ?? UserDefaults.standard.menuAnisetteURL
+            guard !serverString.isEmpty, let url = URL(string: serverString) else {
                 throw NSError(domain: "AnisetteDataViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No active anisette server URL configured."])
             }
             
@@ -539,6 +552,22 @@ struct AnisetteDataView: View {
                     }
                 }
                 
+                // SECTION: CUSTOM ANISETTE SERVER
+                VStack(alignment: .leading, spacing: 8) {
+                    sectionHeader("CUSTOM ANISETTE SERVER")
+                    
+                    VStack(spacing: 0) {
+                        headerFieldRow(
+                            title: "Custom Server URL",
+                            headerKey: "Override",
+                            text: $viewModel.customAnisetteURL,
+                            placeholder: "https://your-server.com (optional)"
+                        )
+                    }
+                    .background(Color.settingsRowBackground)
+                    .cornerRadius(14)
+                }
+                
                 // SECTION: REMOTE SERVER SYNC (ONLY IN REMOTE MODE)
                 if !UserDefaults.standard.useOnDeviceAnisette {
                     VStack(alignment: .leading, spacing: 8) {
@@ -548,7 +577,7 @@ struct AnisetteDataView: View {
                             DisclosureGroup(isExpanded: $showingServerHeaders) {
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack {
-                                        Text("Server: \(URL(string: UserDefaults.standard.menuAnisetteURL)?.host ?? "Active Server")")
+                                        Text("Server: \(URL(string: (viewModel.customAnisetteURL.isEmpty ? UserDefaults.standard.menuAnisetteURL : viewModel.customAnisetteURL))?.host ?? "Active Server")")
                                             .font(.caption)
                                             .foregroundColor(Color.white.opacity(0.6))
                                         Spacer()
