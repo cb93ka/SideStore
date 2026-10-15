@@ -69,9 +69,10 @@ public enum AppConstants {
         public static var defaultODAMetadataURLString: String { defaultODAMetadataURL.absoluteString }
 
         // GSA now rejects the legacy macOS client info used by third-party anisette with -80045 or 503.
-        // Android identity is accepted by Apple GSA (aligned with iloader 2.3.7+ / isideload 0.4.5+).
-        public static let defaultClientInfo           = "<Pixel 7> <Android;14;UQ1A.240205.002> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
-        public static let defaultUserAgent            = Constants.Anisette.defaultUserAgent
+        // Windows iTunes and Android identities are accepted by Apple GSA.
+        // Defaulting to Windows iTunes 12.12.4 identity (matching anisette-v3-server and fortiva).
+        public static let defaultClientInfo           = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
+        public static let defaultUserAgent            = "akd/1.0 CFNetwork/808.1.4"
 
         // Previous legacy defaults that saveConfig or UserDefaults may have persisted; migrated to defaultClientInfo on load
         public static let legacyClientInfos: Set<String> = [

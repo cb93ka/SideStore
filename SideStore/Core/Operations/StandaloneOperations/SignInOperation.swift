@@ -150,6 +150,11 @@ final class SignInOperation: BaseStandaloneOperation<StandaloneOperationContext,
         
         let xcodeVersion = await AnisetteConfigManager.shared.resolvedXcodeVersion()
 
+        // Sync GrandSlam User-Agent with Anisette userAgent if not explicitly overridden by sidesign-config.json
+        if !SideSignConfigManager.shared.hasConfigFile() && !anisetteData.userAgent.isEmpty {
+            DeveloperPortal.shared.customHeaders.grandSlam.userAgent = anisetteData.userAgent
+        }
+
         let (account, session) = try await AuthManager.shared.signIn(
             appleID: appleID,
             password: password,
