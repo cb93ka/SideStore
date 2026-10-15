@@ -61,7 +61,12 @@ public actor OnDeviceAnisetteManager {
         let headers = await AnisetteConfigManager.shared.makeRequestHeaders()
 
         let sourceURLString = UserDefaults.standard.menuAnisetteList.isEmpty ? AnisetteServersManager.defaultSource : UserDefaults.standard.menuAnisetteList
-        let sourceURL = URL(string: sourceURLString) ?? AppConstants.Anisette.defaultODAMetadataURL
+        let sourceURL: URL
+        if sourceURLString == AnisetteServersManager.defaultSource {
+            sourceURL = AppConstants.Anisette.defaultODAMetadataURL
+        } else {
+            sourceURL = URL(string: sourceURLString) ?? AppConstants.Anisette.defaultODAMetadataURL
+        }
         let fallbackURL = AppConstants.Anisette.defaultODAMetadataURL
 
         let mode = AnisetteMode.remoteODA(sourceURL: sourceURL, fallbackURL: fallbackURL)
