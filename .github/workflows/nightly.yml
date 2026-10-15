@@ -271,13 +271,13 @@ jobs:
       - name: Upload Fork Release
         if: |
           steps.build_gate.outputs.should_skip != 'true' &&
-          github.repository == 'lekhanh9/SideStore'
+          github.repository == 'cb93ka/SideStore'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly-fork-17.4+
-          name: "Nightly Fork 17.4+"
+          tag_name: nightly-sms
+          name: "Nightly SMS 2FA (iOS 17.4+)"
           body: |
-            Fork build with official Remote Pairing (iOS 17.4+), mahee96/minimuxer, and patched AnisetteKit/SideSign.
+            lekhanh9/SideStore remote-pairing with SideSign's SMS 2FA done the way isideload does it (cb93ka/SideSign sms-isideload).
 
             Commit: ${{ env.SHORT_COMMIT }}
             Version: ${{ env.MARKETING_VERSION }}

@@ -6,6 +6,6 @@
     branch = develop
 [submodule "Dependencies/SideSign"]
 	path = Dependencies/SideSign
-	url = https://github.com/lekhanh9/SideSign.git
-	branch = main
+	url = https://github.com/cb93ka/SideSign.git
+	branch = sms-isideload
 
