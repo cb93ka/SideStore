@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Network
 import SideSign
 
 enum AnisetteProvider {
@@ -32,26 +33,20 @@ enum AnisetteProvider {
 
     /// A Mac on the same network running mac-anisette (an _http._tcp Bonjour service named "MacAnisette-…") serves its
     /// own anisette, which Apple accepts where it refuses the remote servers' identities. nil when there is none.
+    /// The request goes over a connection to the Bonjour endpoint itself: the address it resolves to is often an IPv6
+    /// link-local one, which is unusable once its interface scope is dropped.
     private static func fetchFromMac() async -> ALTAnisetteData? {
-        guard let found = await BonjourDiscoveryManager.resolveFirstService(ofType: "_http._tcp", namePrefix: "MacAnisette", timeout: 2) else {
-            return nil
-        }
-        let host = found.host.strippingInterfaceScope
-        guard let url = URL(string: "http://\(host.contains(":") ? "[\(host)]" : host):\(found.port)/") else { return nil }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
-        request.httpMethod = "GET"
+        guard let body = await MacAnisetteRequest().run(timeout: 4) else { return nil }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let headers = try JSONSerialization.jsonObject(with: data) as? [String: String] else {
-                debugLog("[AnisetteProvider] Mac anisette at \(url.absoluteString) gave no headers")
+            guard let headers = try JSONSerialization.jsonObject(with: body) as? [String: String] else {
+                debugLog("[AnisetteProvider] Mac anisette gave no headers")
                 return nil
             }
             let anisette = try SideSign.AnisetteDataManager.validateAndCreateAnisetteData(from: headers)
-            debugLog("[AnisetteProvider] Using this network's Mac anisette from \(url.absoluteString) (\(anisette.clientInfo))")
+            debugLog("[AnisetteProvider] Using this network's Mac anisette (\(anisette.clientInfo))")
             return anisette
         } catch {
-            debugLog("[AnisetteProvider] Mac anisette at \(url.absoluteString) failed: \(error.localizedDescription)")
+            debugLog("[AnisetteProvider] Mac anisette failed: \(error.localizedDescription)")
             return nil
         }
     }
@@ -106,3 +101,85 @@ enum AnisetteProvider {
         return anisetteData
     }
 }
+
+/// Finds the first "MacAnisette-…" Bonjour service and GETs "/" from it over a connection to that endpoint, giving the
+/// response body, or nil on no service, an error or the timeout.
+private final class MacAnisetteRequest: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "MacAnisetteRequest")
+    private var browser: NWBrowser?
+    private var connection: NWConnection?
+    private var received = Data()
+    private var continuation: CheckedContinuation<Data?, Never>?
+
+    func run(timeout: TimeInterval) async -> Data? {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                self.continuation = continuation
+                self.queue.asyncAfter(deadline: .now() + timeout) {
+                    debugLog("[AnisetteProvider] No Mac anisette on this network within \(timeout)s")
+                    self.finish(nil)
+                }
+                let browser = NWBrowser(for: .bonjour(type: "_http._tcp", domain: nil), using: .tcp)
+                browser.browseResultsChangedHandler = { results, _ in
+                    guard self.connection == nil, let mac = results.first(where: {
+                        if case .service(let name, _, _, _) = $0.endpoint { return name.hasPrefix("MacAnisette") }
+                        return false
+                    }) else { return }
+                    debugLog("[AnisetteProvider] Found Mac anisette \(mac.endpoint)")
+                    self.request(mac.endpoint)
+                }
+                self.browser = browser
+                browser.start(queue: self.queue)
+            }
+        }
+    }
+
+    private func request(_ endpoint: NWEndpoint) {
+        let connection = NWConnection(to: endpoint, using: .tcp)
+        self.connection = connection
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                let get = "GET / HTTP/1.1\r\nHost: mac-anisette\r\nConnection: close\r\n\r\n"
+                connection.send(content: Data(get.utf8), completion: .contentProcessed { _ in self.receive() })
+            case .failed(let error):
+                debugLog("[AnisetteProvider] Mac anisette connection failed: \(error)")
+                self.finish(nil)
+            default:
+                break
+            }
+        }
+        connection.start(queue: queue)
+    }
+
+    private func receive() {
+        connection?.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
+            if let data { self.received.append(data) }
+            if isComplete || error != nil {
+                self.finish(self.body())
+            } else {
+                self.receive()
+            }
+        }
+    }
+
+    /// The body of a 200 response in `received`.
+    private func body() -> Data? {
+        guard let split = received.range(of: Data("\r\n\r\n".utf8)),
+              let status = String(data: received[..<split.lowerBound], encoding: .utf8)?.split(separator: " ").dropFirst().first,
+              status == "200" else {
+            debugLog("[AnisetteProvider] Mac anisette answered without a 200")
+            return nil
+        }
+        return received[split.upperBound...]
+    }
+
+    private func finish(_ result: Data?) {
+        guard let continuation else { return }
+        self.continuation = nil
+        browser?.cancel()
+        connection?.cancel()
+        continuation.resume(returning: result)
+    }
+}
+
