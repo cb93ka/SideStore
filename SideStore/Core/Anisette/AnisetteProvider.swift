@@ -11,6 +11,9 @@ import SideSign
 
 enum AnisetteProvider {
     static func fetch(handler: AnisetteServerHandler? = nil) async throws -> ALTAnisetteData {
+        if let data = await fetchFromMac() {
+            return data
+        }
         if UserDefaults.standard.useOnDeviceAnisette {
             debugLog("[AnisetteProvider] Attempting On-Device Anisette (ODA)...")
             do {
@@ -24,6 +27,32 @@ enum AnisetteProvider {
         } else {
             debugLog("[AnisetteProvider] Fetching anisette via remote server...")
             return try await fetchRemote(handler: handler)
+        }
+    }
+
+    /// A Mac on the same network running mac-anisette (an _http._tcp Bonjour service named "MacAnisette-…") serves its
+    /// own anisette, which Apple accepts where it refuses the remote servers' identities. nil when there is none.
+    private static func fetchFromMac() async -> ALTAnisetteData? {
+        guard let found = await BonjourDiscoveryManager.resolveFirstService(ofType: "_http._tcp", namePrefix: "MacAnisette", timeout: 2) else {
+            return nil
+        }
+        let host = found.host.strippingInterfaceScope
+        guard let url = URL(string: "http://\(host.contains(":") ? "[\(host)]" : host):\(found.port)/") else { return nil }
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
+        request.httpMethod = "GET"
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let headers = try JSONSerialization.jsonObject(with: data) as? [String: String] else {
+                debugLog("[AnisetteProvider] Mac anisette at \(url.absoluteString) gave no headers")
+                return nil
+            }
+            let anisette = try SideSign.AnisetteDataManager.validateAndCreateAnisetteData(from: headers)
+            debugLog("[AnisetteProvider] Using this network's Mac anisette from \(url.absoluteString) (\(anisette.clientInfo))")
+            return anisette
+        } catch {
+            debugLog("[AnisetteProvider] Mac anisette at \(url.absoluteString) failed: \(error.localizedDescription)")
+            return nil
         }
     }
 
